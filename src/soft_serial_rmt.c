@@ -16,24 +16,28 @@
 
 #include "freertos/queue.h"
 #include "driver/rmt.h"
-#include "esp_clk_tree.h"
 
-static const char *TAG = "SoftSerial";
+
+static const char *TAG = "SoftSerialRmt";
 
 #define RMT_DIV 80
-#define RMT_RX_IDLE_THRES 1000
-#define RX_CHANNEL 0
+#define RMT_RX_IDLE_THRES 1200
+#define RX_CHANNEL RMT_CHANNEL_0
 
 esp_err_t soft_serial_init(gpio_num_t rx_pin, gpio_num_t tx_pin)
 {
-
     size_t length = 0;
     bool repeat = false;
     RingbufHandle_t rb = NULL;
     rmt_item32_t *items = NULL;
 
     rmt_config_t rmt_rx_config = RMT_DEFAULT_CONFIG_RX(rx_pin, RX_CHANNEL);
-    rmt_rx_config.clk_div = 80;
+    rmt_rx_config.clk_div = RMT_DIV;
+    rmt_rx_config.mem_block_num = 1;
+    rmt_rx_config.flags = RMT_CHANNEL_FLAGS_INVERT_SIG;
+    rmt_rx_config.rx_config.idle_threshold = RMT_RX_IDLE_THRES;
+    rmt_rx_config.rx_config.filter_en = 0;
+
     rmt_config(&rmt_rx_config);
     rmt_driver_install(RX_CHANNEL, 1000, 0);
     rmt_get_ringbuf_handle(RX_CHANNEL, &rb);
@@ -50,8 +54,6 @@ esp_err_t soft_serial_init(gpio_num_t rx_pin, gpio_num_t tx_pin)
         }
     return ESP_OK;
 }
-
-
 
 esp_err_t soft_serial_deinit(void)
 {
