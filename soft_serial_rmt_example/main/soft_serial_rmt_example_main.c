@@ -20,7 +20,7 @@
 #include <rom/ets_sys.h>
 
 #include "logic_analyzer_ws_server.h"
-#include "soft_serial_timer.h"
+#include "soft_serial_rmt.h"
 
 
 #define UART_BAUD_RATE (9600)
@@ -43,7 +43,7 @@ static const char *TAG = "UART TEST";
 static uart_config_t uart_config = {
     .baud_rate = UART_BAUD_RATE,
     .data_bits = UART_DATA_8_BITS,
-    .parity = UART_PARITY_DISABLE,
+    .parity = UART_PARITY_EVEN,
     .stop_bits = UART_STOP_BITS_1,
     .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
     .source_clk = UART_SCLK_DEFAULT,
@@ -54,17 +54,25 @@ int intr_alloc_flags = 0;
 static intr_alloc_flags = ESP_INTR_FLAG_IRAM;
 #endif
 
-uint8_t send_data[] = "0123456789abcdefghijklmnopqrst\n";
-uint8_t send_data1[] = "0123456789abcdefghijklmnopqrst__\n";
+uint8_t send_data[] = "0123456789abcdefghijklmnopqrst";
+uint8_t send_data1[] = "0";
 uint8_t send_data2[] = "0123456789abcdefghijklmnopqrst___\n";
+uint8_t send_data3[] = {
+    0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,
+    0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,
+    0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,
+    0xaa,0xaa,0xaa,0xaa,0xaa,0xaa
+};
 
 static void sender_task(void *p)
 {
     while (1)
     {
-        vTaskDelay(100);
+        vTaskDelay(200);
+        ESP_LOGI(TAG,"-----");
         gpio_set_level(SEND_TEST_GPIO, 1);
-        uart_write_bytes(UART_PORT_NUM, (const char *)send_data, sizeof(send_data) - 1);
+        uart_write_bytes(UART_PORT_NUM, (const char *)send_data3, sizeof(send_data3) - 1);
+ 
         gpio_set_level(SEND_TEST_GPIO, 0);
     }
 }
@@ -103,16 +111,18 @@ void app_main(void)
     ESP_ERROR_CHECK(uart_param_config(UART_PORT_NUM, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, TEST_TXD, TEST_RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 
-    gpio_set_direction(TEST_RXD, GPIO_MODE_INPUT_OUTPUT);
+
+    //gpio_set_direction(TEST_RXD, GPIO_MODE_INPUT_OUTPUT);
 
 
-    xTaskCreate(receiver_task, "receiver_task", TASK_STACK_SIZE * 2, NULL, 10, NULL);
+    //xTaskCreate(receiver_task, "receiver_task", TASK_STACK_SIZE * 2, NULL, 10, NULL);
     xTaskCreate(sender_task, "sender_task", TASK_STACK_SIZE * 2, NULL, 10, NULL);
 
     uint8_t data[128];    
     while(1){
-        //soft_serial_read_data(data,sizeof(send_data) - 1);
-        ESP_LOGI(TAG,"%s",data);
+        vTaskDelay(100);
+        soft_serial_read_data(data,sizeof(send_data) - 1);
+        //ESP_LOGI(TAG,"%s",data);
         //soft_serial_write_data(data,sizeof(send_data) - 1);
     }
 
