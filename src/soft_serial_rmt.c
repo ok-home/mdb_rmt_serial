@@ -101,6 +101,8 @@ esp_err_t soft_serial_read_data(uint8_t *data, size_t count)
                         data[cnt_byte] >>= 1;
                     }
                     ESP_LOGI(TAG,"last item cnt %d data %0x %c",cnt_byte,data[cnt_byte],data[cnt_byte]);
+                        cnt_byte = 0;
+                        cnt_bit = 0; // wait next start bit
                 }
                 else 
                 {
@@ -120,6 +122,8 @@ esp_err_t soft_serial_read_data(uint8_t *data, size_t count)
         }
         // after parsing the data, return spaces to ringbuffer.
         ESP_LOGI(TAG,"all item converted");
+                        cnt_byte = 0;
+                        cnt_bit = 0; // wait next start bit
         vRingbufferReturnItem(rb, (void *)items);
     }
 
