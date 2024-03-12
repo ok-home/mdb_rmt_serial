@@ -106,7 +106,7 @@ esp_err_t soft_serial_read_data(uint8_t *data, size_t count)
                 }
                 else 
                 {
-                    for(;(cnt_bit<BIT_IN_WORD-1) && (cnt_bit < cnt_in_duration) ;cnt_bit++)
+                    for(int j=0;(cnt_bit<BIT_IN_WORD-1) && (j < cnt_in_duration) ;cnt_bit++,j++)
                     {
                         data[cnt_byte] |= lvl<<7; // 8 with cmd or parity check //BIT_IN_WORD-3
                         data[cnt_byte] >>= 1;
