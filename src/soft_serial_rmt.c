@@ -96,39 +96,25 @@ esp_err_t soft_serial_read_data(uint8_t *data_out, size_t count)
                         ESP_LOGE(TAG, "receive frame err START bit");
                     }
                 }
-                else if (cnt_in_duration == 0) // last item -> stop bit -> lvl=1
+                else if (cnt_in_duration == 0 || (cnt_bit+cnt_in_duration) > (BIT_IN_WORD - 1) ) // last item -> stop bit -> lvl=1
                 {
-                    lvl = 1; //??
                     for (; cnt_bit < BIT_IN_WORD - 1; cnt_bit++)
                     {
                         data[cnt_byte] >>= 1;
                         data[cnt_byte] |= lvl << 7; // 8 with cmd or parity check //BIT_IN_WORD-3
                     }
-                    ESP_LOGI(TAG, "last item cnt %d data %0x ", cnt_byte, data[cnt_byte]);
-                    cnt_byte = 0;
+                    ESP_LOGI(TAG, "byte decoded cnt %d data %0x ", cnt_byte, data[cnt_byte]);
+                    cnt_byte++;
                     cnt_bit = 0; // wait next start bit
                 }
-                else if (cnt_bit >= BIT_IN_WORD - 1) // all bits converted, next byte
-                    {
-                        ESP_LOGI(TAG, "last bit in byte cnt %d data %0x ", cnt_byte, data[cnt_byte]);
-                        cnt_byte++;
-                        cnt_bit = 0; // wait next start bit
-                    }
-
                 else
                 {
-                    int j=0;
-                    for (; (cnt_bit < BIT_IN_WORD - 1) && (j < cnt_in_duration); cnt_bit++, j++)
+                    for (int j=0; j < cnt_in_duration; cnt_bit++, j++)
                     {
                         data[cnt_byte] >>= 1;
                         data[cnt_byte] |= lvl << 7; // 8 with cmd or parity check //BIT_IN_WORD-3
                     }
-                    if (j!=cnt_in_duration){
-                    ESP_LOGI(TAG, "double stop cnt=%d data=%x ", cnt_byte,data[cnt_byte]);
-                        cnt_byte++;
-                        cnt_bit = 0; // wait next start bit
-                    }
-                }
+              }
             }
         }
         // after parsing the data, return spaces to ringbuffer.
