@@ -83,8 +83,8 @@ esp_err_t soft_serial_read_data(uint8_t *data_out, size_t count)
             {
                 int cnt_in_duration = items[i].duration / RX_BIT_DIVIDER;
                 int lvl = items[i].level;
-                //ESP_LOGI(TAG, "%d lvl=%d, bit_in=%d,dur=%d", i, lvl, cnt_in_duration, items[i].duration);
-                if (cnt_bit == 0)
+                // ESP_LOGI(TAG, "%d lvl=%d, bit_in=%d,dur=%d", i, lvl, cnt_in_duration, items[i].duration);
+                if (cnt_bit == 0) // start bit 
                 {
                     if (lvl == 0 && cnt_in_duration > 0 && cnt_in_duration < BIT_IN_WORD) // start bit
                     {
@@ -96,12 +96,12 @@ esp_err_t soft_serial_read_data(uint8_t *data_out, size_t count)
                         ESP_LOGE(TAG, "receive frame err START bit");
                     }
                 }
-                else if (cnt_in_duration == 0 || (cnt_bit+cnt_in_duration) > (BIT_IN_WORD - 1) ) // last item -> stop bit -> lvl=1
+                else if (cnt_in_duration == 0 || (cnt_bit + cnt_in_duration) > (BIT_IN_WORD - 1)) // last item && stop bit 
                 {
                     for (; cnt_bit < BIT_IN_WORD - 1; cnt_bit++)
                     {
                         data[cnt_byte] >>= 1;
-                        data[cnt_byte] |= lvl << 7; // 8 with cmd or parity check //BIT_IN_WORD-3
+                        data[cnt_byte] |= lvl << (BIT_IN_WORD-3); // 8 with cmd or parity check //BIT_IN_WORD-3
                     }
                     ESP_LOGI(TAG, "byte decoded cnt %d data %0x ", cnt_byte, data[cnt_byte]);
                     cnt_byte++;
@@ -109,12 +109,12 @@ esp_err_t soft_serial_read_data(uint8_t *data_out, size_t count)
                 }
                 else
                 {
-                    for (int j=0; j < cnt_in_duration; cnt_bit++, j++)
+                    for (int j = 0; j < cnt_in_duration; cnt_bit++, j++)
                     {
                         data[cnt_byte] >>= 1;
-                        data[cnt_byte] |= lvl << 7; // 8 with cmd or parity check //BIT_IN_WORD-3
+                        data[cnt_byte] |= lvl << (BIT_IN_WORD-3); // 8 with cmd or parity check //BIT_IN_WORD-3
                     }
-              }
+                }
             }
         }
         // after parsing the data, return spaces to ringbuffer.
@@ -123,6 +123,5 @@ esp_err_t soft_serial_read_data(uint8_t *data_out, size_t count)
         cnt_bit = 0; // wait next start bit
         vRingbufferReturnItem(rb, (void *)items);
     }
-
     return ESP_OK;
 }
