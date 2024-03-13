@@ -13,6 +13,7 @@
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 #include "esp_log.h"
+#include <string.h>
 
 #include "freertos/queue.h"
 #include "driver/timer.h"
@@ -67,6 +68,31 @@ uint8_t send_data3[] = {
     0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,0xaa,
     0xaa,0xaa,0xaa,0xaa,0xaa,0xaa*/
 };
+mdb_item16_t send_data4[] = 
+{
+    {.cmd=1,.data=0xaa},
+    {.cmd=0,.data=0x1},
+    {.cmd=0,.data=0x10},
+    {.cmd=0,.data=0xff},
+    {.cmd=1,.data=0xff},
+    {.cmd=0,.data=0x00},
+    {.cmd=0,.data=0x0f},
+    {.cmd=0,.data=0xf0},
+    {.cmd=0,.data=0x30},
+    {.cmd=0,.data=0x03},
+    {.cmd=0,.data=0xe0},
+    {.cmd=0,.data=0x0e},
+    {.cmd=1,.data=0xc0},
+    {.cmd=0,.data=0x0c},
+    {.cmd=1,.data=0xcc},
+    {.cmd=0,.data=0xbb},
+    {.cmd=0,.data=0x33},
+    {.cmd=1,.data=0x77},
+    {.cmd=0,.data=0x88},
+    {.cmd=0,.data=0x11},
+    {.cmd=0,.data=0x0},
+
+};
 
 static void sender_task(void *p)
 {
@@ -120,14 +146,24 @@ void app_main(void)
     ///xTaskCreate(receiver_task, "receiver_task", TASK_STACK_SIZE * 2, NULL, 10, NULL);
     //xTaskCreate(sender_task, "sender_task", TASK_STACK_SIZE * 2, NULL, 10, NULL);
 
-    uint8_t data[128];    
+    mdb_item16_t data[128];
+    int err_cnt = 0;    
     while(1){
         vTaskDelay(10);
         gpio_set_level(25,1);
-        soft_serial_write_data(send_data,sizeof(send_data) - 1);
-        soft_serial_read_data(data,sizeof(send_data)-1);
+        soft_serial_write_data(send_data4,sizeof(send_data4)/sizeof(mdb_item16_t));
+        soft_serial_read_data(data,sizeof(send_data4)/sizeof(mdb_item16_t));
         gpio_set_level(25,0);
+        /*
+        for(int i=0;i<sizeof(send_data4)/sizeof(mdb_item16_t);i++)
+        {
+            ESP_LOGI(TAG,"CNT=%d,cmd=%x,data=%x",i,data[i].cmd,data[i].data);
+        }
         //ESP_LOGI(TAG,"rcv %s",data);
+        */
+       if(memcmp((void*)send_data4,(void*)data,sizeof(send_data4)))
+            {ESP_LOGE(TAG,"ERROR %d",err_cnt);}
+       memset((void*)data,0,sizeof(send_data4));
 
 
     }
