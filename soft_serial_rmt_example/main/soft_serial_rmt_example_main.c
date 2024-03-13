@@ -125,8 +125,8 @@ void app_main(void)
     uint8_t data[128];    
     while(1){
         vTaskDelay(100);
-        soft_serial_read_data(data,sizeof(send_data) - 1);
-        //ESP_LOGI(TAG,"%s",data);
+        soft_serial_read_data(data,sizeof(send_data3) - 1);
+        //ESP_LOGI(TAG,"%x",data);
         //soft_serial_write_data(data,sizeof(send_data) - 1);
     }
 
