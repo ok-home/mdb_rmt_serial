@@ -36,19 +36,7 @@ static QueueHandle_t soft_serial_transmit_queue;
 static TaskHandle_t receive_task_handle;
 static TaskHandle_t transmit_task_handle;
 
-typedef struct
-{
-    union
-    {
-        struct
-        {
-            uint16_t data   : 8;    /*!< mdb data */
-            uint16_t cmd    : 1;    /*!< mdb cmd  */
-            uint16_t spare  : 7;    /*!< spare for future*/
-        };
-        uint16_t val; /*!< Equivalent unsigned value for the MDB item */
-    };
-} mdb_item16_t;
+
 
 // single rmt item
 typedef struct
@@ -70,7 +58,7 @@ static void soft_serial_receive_task(void *p)
     // bool repeat = false;
     RingbufHandle_t rb = NULL;
     rmt_item16_t *items = NULL;
-    uint8_t data[64] = {0};
+    uint8_t data = {0};
     int cnt_bit = 0;  // wait start bit
     int cnt_byte = 0; // byte in packet
     rmt_get_ringbuf_handle(RX_CHANNEL, &rb);
@@ -80,6 +68,7 @@ static void soft_serial_receive_task(void *p)
         items = (rmt_item16_t *)xRingbufferReceive(rb, &length, portMAX_DELAY);
         if (items)
         {
+            gpio_set_level(26,1);
             length /= 2; // one RMT = 2 Bytes
             for (int i = 0; i < length; i++)
             {
@@ -90,7 +79,7 @@ static void soft_serial_receive_task(void *p)
                 {
                     if (lvl == 0 && cnt_in_duration > 0 && cnt_in_duration < BIT_IN_WORD) // start bit
                     {
-                        data[cnt_byte] = 0;        // first  bits in byte
+                        data = 0;        // first  bits in byte
                         cnt_bit = cnt_in_duration; // start bit + some bits=0
                     }
                     else
@@ -102,10 +91,11 @@ static void soft_serial_receive_task(void *p)
                 {
                     for (; cnt_bit < BIT_IN_WORD - 1; cnt_bit++)
                     {
-                        data[cnt_byte] >>= 1;
-                        data[cnt_byte] |= lvl << (BIT_IN_WORD-3); // 8 with cmd or parity check //BIT_IN_WORD-3
+                        data >>= 1;
+                        data |= lvl << (BIT_IN_WORD-3); // 8 with cmd or parity check //BIT_IN_WORD-3
                     }
-                    ESP_LOGI(TAG, "byte decoded cnt %d data %0x ", cnt_byte, data[cnt_byte]);
+                    //ESP_LOGI(TAG, "byte decoded cnt %d data %0x ", cnt_byte, data);
+                    xQueueSend(soft_serial_receive_queue,&data,portMAX_DELAY);
                     cnt_byte++;
                     cnt_bit = 0; // wait next start bit
                 }
@@ -113,14 +103,15 @@ static void soft_serial_receive_task(void *p)
                 {
                     for (int j = 0; j < cnt_in_duration; cnt_bit++, j++)
                     {
-                        data[cnt_byte] >>= 1;
-                        data[cnt_byte] |= lvl << (BIT_IN_WORD-3); // 8 with cmd or parity check //BIT_IN_WORD-3
+                        data >>= 1;
+                        data |= lvl << (BIT_IN_WORD-3); // 8 with cmd or parity check //BIT_IN_WORD-3
                     }
                 }
             }
         }
         // after parsing the data, return spaces to ringbuffer.
-        ESP_LOGI(TAG, "all item converted");
+        gpio_set_level(26,0);
+        //ESP_LOGI(TAG, "all item converted %d byte ",cnt_byte);
         cnt_byte = 0;
         cnt_bit = 0; // wait next start bit
         vRingbufferReturnItem(rb, (void *)items);
@@ -135,7 +126,7 @@ static void soft_serial_transmit_task(void *p)
     while(1)
     {
         xQueueReceive(soft_serial_transmit_queue, &data, portMAX_DELAY);
-        memset((void*)rmt_data,sizeof(rmt_item)*sizeof(rmt_item32_t));
+        memset((void*)rmt_data,0,sizeof(rmt_item));
         cnt = 0;
         rmt_data[cnt].level = 0; // start bit
         rmt_data[cnt].duration = TX_BIT_DIVIDER;
@@ -155,7 +146,8 @@ static void soft_serial_transmit_task(void *p)
         rmt_data[cnt].level = 1; // end transfer
         rmt_data[cnt].duration = 0;
         cnt++;
-        rmt_write_items(TX_CHANNEL, rmt_item, sizeof(rmt_item), 1)  //start & wait done
+        rmt_write_items(TX_CHANNEL, rmt_item, 8, 1);  //start & wait done
+
     }
 }
 
