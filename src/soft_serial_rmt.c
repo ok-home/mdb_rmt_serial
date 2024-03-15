@@ -57,12 +57,11 @@ typedef struct
 static void soft_serial_receive_task(void *p)
 {
     size_t length = 0;
-    // bool repeat = false;
     RingbufHandle_t rb = NULL;
     rmt_item16_t *items = NULL;
     mdb_item16_t data = {0};
-    int cnt_bit = 0;  // wait start bit
-    int cnt_byte = 0; // byte in packet
+    int cnt_bit = 0;  // wait start bit, bit count
+    int cnt_byte = 0; // byte in packet 
     rmt_get_ringbuf_handle(RX_CHANNEL, &rb);
     rmt_rx_start(RX_CHANNEL, true);
     while (1)
@@ -70,26 +69,28 @@ static void soft_serial_receive_task(void *p)
         items = (rmt_item16_t *)xRingbufferReceive(rb, &length, portMAX_DELAY);
         if (items)
         {
-            gpio_set_level(26,1);
+            #if DBG
+            gpio_set_level(RX_TEST_GPIO,1);
+            #endif
             length /= 2; // one RMT = 2 Bytes
             for (int i = 0; i < length; i++)
             {
-                int cnt_in_duration = items[i].duration / RX_BIT_DIVIDER;
+                int duration = items[i].duration / RX_BIT_DIVIDER;
                 int lvl = items[i].level;
-                // ESP_LOGI(TAG, "%d lvl=%d, bit_in=%d,dur=%d", i, lvl, cnt_in_duration, items[i].duration);
+                // ESP_LOGI(TAG, "%d lvl=%d, bit_in=%d,dur=%d", i, lvl, duration, items[i].duration);
                 if (cnt_bit == 0) // start bit 
                 {
-                    if (lvl == 0 && cnt_in_duration > 0 && cnt_in_duration < BIT_IN_WORD) // start bit
+                    if (lvl == 0 && duration > 0 && duration < BIT_IN_WORD) // start bit
                     {
                         data.val = 0;        // first  bits in byte
-                        cnt_bit = cnt_in_duration; // start bit + some bits=0
+                        cnt_bit = duration; // start bit + some bits=0
                     }
                     else
                     {
                         ESP_LOGE(TAG, "receive frame err START bit");
                     }
                 }
-                else if (cnt_in_duration == 0 || (cnt_bit + cnt_in_duration) > (BIT_IN_WORD - 1)) // last item && stop bit 
+                else if (duration == 0 || (cnt_bit + duration) > (BIT_IN_WORD - 1)) // last item && stop bit 
                 {
                     for (; cnt_bit < BIT_IN_WORD - 1; cnt_bit++)
                     {
@@ -103,7 +104,7 @@ static void soft_serial_receive_task(void *p)
                 }
                 else
                 {
-                    for (int j = 0; j < cnt_in_duration; cnt_bit++, j++)
+                    for (int j = 0; j < duration; cnt_bit++, j++)
                     {
                         data.val >>= 1;
                         data.val |= lvl << (BIT_IN_WORD-3); // 8 with cmd or parity check //BIT_IN_WORD-3
@@ -112,7 +113,9 @@ static void soft_serial_receive_task(void *p)
             }
         }
         // after parsing the data, return spaces to ringbuffer.
-        gpio_set_level(26,0);
+        #if DBG
+        gpio_set_level(RX_TEST_GPIO,0);
+        #endif
         //ESP_LOGI(TAG, "all item converted %d byte ",cnt_byte);
         cnt_byte = 0;
         cnt_bit = 0; // wait next start bit
@@ -142,12 +145,14 @@ static void soft_serial_transmit_task(void *p)
         rmt_data[cnt].level = 1; // stop bit
         rmt_data[cnt].duration = TX_BIT_DIVIDER;
         cnt++;
+        #if 0   
         rmt_data[cnt].level = 1; // end transfer
         rmt_data[cnt].duration = 0;
         cnt++;
         rmt_data[cnt].level = 1; // end transfer
         rmt_data[cnt].duration = 0;
         cnt++;
+        #endif
         rmt_write_items(TX_CHANNEL, rmt_item, 8, 1);  //start & wait done
 
     }
@@ -181,8 +186,6 @@ esp_err_t soft_serial_init(gpio_num_t rx_pin, gpio_num_t tx_pin)
     rmt_driver_install(RX_CHANNEL, 4096, 0);
     xTaskCreate(soft_serial_receive_task, "rmt rx", 4096, NULL, 5, &receive_task_handle);
 
-
-
     return ESP_OK;
 }
 
@@ -196,26 +199,25 @@ esp_err_t soft_serial_deinit(void)
     rmt_driver_uninstall(TX_CHANNEL);
     vQueueDelete(soft_serial_transmit_queue);
 
-
-
-
     return ESP_OK;
 }
 
-esp_err_t soft_serial_write_data(mdb_item16_t *data, size_t count)
+esp_err_t soft_serial_write_data(mdb_item16_t *data, size_t count, TickType_t wait_time)
 {
     for (int i = 0; i < count; i++)
     {
-        xQueueSend(soft_serial_transmit_queue, &data[i], portMAX_DELAY);
+        if(xQueueSend(soft_serial_transmit_queue, &data[i], wait_time) != pdTRUE)
+            {return ESP_ERR_TIMEOUT ;}
     }
     return ESP_OK;
 }
 
-esp_err_t soft_serial_read_data(mdb_item16_t *data, size_t count)
+esp_err_t soft_serial_read_data(mdb_item16_t *data, size_t count,TickType_t wait_time)
 {
     for (int i = 0; i < count; i++)
     {
-        xQueueReceive(soft_serial_receive_queue, &data[i], portMAX_DELAY);
+        if( xQueueReceive(soft_serial_receive_queue, &data[i], wait_time) != pdTRUE)
+        { return ESP_ERR_TIMEOUT ;}
     }
     return ESP_OK;
 }
