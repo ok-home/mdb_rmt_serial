@@ -63,6 +63,8 @@ void app_main(void)
 
     #if DBG
 // dbg logic analyzer
+#include "logic_analyzer_ws_server.h"
+
     logic_analyzer_ws_server();
 //
 //  dbg GPIO PIN
@@ -76,6 +78,7 @@ void app_main(void)
 
     mdb_item16_t data[64];
     int cnt = 0;
+    int icnt=0;
     int err_cnt = 0;    
     while(1){
         vTaskDelay(10);
@@ -90,8 +93,9 @@ void app_main(void)
        if(memcmp((void*)send_data,(void*)data,sizeof(send_data)))
             {ESP_LOGE(TAG,"ERROR %d",err_cnt);}
        memset((void*)data,0,sizeof(send_data));
-       if( cnt++ > 10)
-            {ESP_LOGI(TAG,"Send/Receive %d packet",cnt); cnt=0;}
+       cnt++;
+       if( cnt >= 10)
+            {ESP_LOGI(TAG,"Send/Receive %d packet icnt=%d",cnt, icnt++); cnt=0;}
     }
 
 }

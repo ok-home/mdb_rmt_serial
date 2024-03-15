@@ -87,7 +87,7 @@ static void soft_serial_receive_task(void *p)
                     }
                     else
                     {
-                        ESP_LOGE(TAG, "receive frame err START bit");
+                        ESP_LOGE(TAG, "receive frame err START bit %d lvl=%d, bit_in=%d,dur=%d", i, lvl, duration, items[i].duration);
                     }
                 }
                 else if (duration == 0 || (cnt_bit + duration) > (BIT_IN_WORD - 1)) // last item && stop bit 
@@ -131,7 +131,6 @@ static void soft_serial_transmit_task(void *p)
     while(1)
     {
         xQueueReceive(soft_serial_transmit_queue, &data, portMAX_DELAY);
-        memset((void*)rmt_data,0,sizeof(rmt_item));
         cnt = 0;
         rmt_data[cnt].level = 0; // start bit
         rmt_data[cnt].duration = TX_BIT_DIVIDER;
@@ -145,14 +144,12 @@ static void soft_serial_transmit_task(void *p)
         rmt_data[cnt].level = 1; // stop bit
         rmt_data[cnt].duration = TX_BIT_DIVIDER;
         cnt++;
-        #if 0   
         rmt_data[cnt].level = 1; // end transfer
         rmt_data[cnt].duration = 0;
         cnt++;
         rmt_data[cnt].level = 1; // end transfer
         rmt_data[cnt].duration = 0;
         cnt++;
-        #endif
         rmt_write_items(TX_CHANNEL, rmt_item, 8, 1);  //start & wait done
 
     }
@@ -207,7 +204,7 @@ esp_err_t soft_serial_write_data(mdb_item16_t *data, size_t count, TickType_t wa
     for (int i = 0; i < count; i++)
     {
         if(xQueueSend(soft_serial_transmit_queue, &data[i], wait_time) != pdTRUE)
-            {return ESP_ERR_TIMEOUT ;}
+            { return ESP_ERR_TIMEOUT ;}
     }
     return ESP_OK;
 }
@@ -216,7 +213,7 @@ esp_err_t soft_serial_read_data(mdb_item16_t *data, size_t count,TickType_t wait
 {
     for (int i = 0; i < count; i++)
     {
-        if( xQueueReceive(soft_serial_receive_queue, &data[i], wait_time) != pdTRUE)
+        if(xQueueReceive(soft_serial_receive_queue, &data[i], wait_time)!= pdTRUE)
         { return ESP_ERR_TIMEOUT ;}
     }
     return ESP_OK;

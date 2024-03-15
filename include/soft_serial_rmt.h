@@ -22,8 +22,7 @@ esp_err_t soft_serial_read_data(mdb_item16_t *data, size_t count,TickType_t wait
 #define DBG 1 
 
 #if DBG
-// add REQUIRES logic_analyzer from soft_serial_rmt_example/main/CMakeLists.txt
-#include "logic_analyzer_ws_server.h"
+
 
 #define TX_TEST_GPIO (25)
 #define RX_TEST_GPIO (26)
