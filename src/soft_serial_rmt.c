@@ -23,13 +23,13 @@
 static const char *TAG = "SoftSerialRmt";
 
 #define RX_CHANNEL RMT_CHANNEL_0
-#define RMT_RX_DIV 8
-#define RMT_RX_IDLE_THRES 12000
-#define RX_BIT_DIVIDER 1040
+#define RMT_RX_DIV (80)   //8
+#define RMT_RX_IDLE_THRES (12000)  //120000
+#define RX_BIT_DIVIDER (102)  //1040
 
 #define TX_CHANNEL RMT_CHANNEL_4
-#define RMT_TX_DIV 8
-#define TX_BIT_DIVIDER 1042
+#define RMT_TX_DIV (82)  //8
+#define TX_BIT_DIVIDER (100)  //1042
 
 #define BIT_IN_WORD (11) // start+9bit+stop
 
