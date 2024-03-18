@@ -25,7 +25,7 @@ static const char *TAG = "SoftSerialRmt";
 #define RX_CHANNEL RMT_CHANNEL_0
 #define RMT_RX_DIV (80)   //8
 #define RMT_RX_IDLE_THRES (12000)  //120000
-#define RX_BIT_DIVIDER (102)  //1040
+#define RX_BIT_DIVIDER (100)  //1040
 
 #define TX_CHANNEL RMT_CHANNEL_4
 #define RMT_TX_DIV (82)  //8
