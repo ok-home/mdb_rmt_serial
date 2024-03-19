@@ -19,7 +19,7 @@ esp_err_t soft_serial_deinit(void);
 esp_err_t soft_serial_write_data(mdb_item16_t *data, size_t count,TickType_t wait_time);
 esp_err_t soft_serial_read_data(mdb_item16_t *data, size_t count,TickType_t wait_time);
 
-#define DBG 0 
+#define DBG 1 
 
 #if DBG 
 

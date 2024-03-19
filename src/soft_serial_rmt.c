@@ -174,7 +174,9 @@ esp_err_t soft_serial_init(gpio_num_t rx_pin, gpio_num_t tx_pin)
     rmt_tx_config.tx_config.loop_en = 0;
     rmt_tx_config.tx_config.idle_level = 1;
     rmt_tx_config.tx_config.idle_output_en = 1;
-
+    //
+    //rmt_tx_config.flags=RMT_CHANNEL_FLAGS_INVERT_SIG;
+    //
     soft_serial_transmit_queue = xQueueCreate(64, sizeof(mdb_item16_t));
     rmt_config(&rmt_tx_config);
     rmt_driver_install(TX_CHANNEL, 0, 0);
@@ -185,6 +187,11 @@ esp_err_t soft_serial_init(gpio_num_t rx_pin, gpio_num_t tx_pin)
     rmt_rx_config.mem_block_num = 4;
     rmt_rx_config.rx_config.idle_threshold = RMT_RX_IDLE_THRES;
     rmt_rx_config.rx_config.filter_en = 0;
+    rmt_rx_config.rx_config.filter_en = true;
+    rmt_rx_config.rx_config.filter_ticks_thresh = 5;
+    //
+    //rmt_rx_config.flags=RMT_CHANNEL_FLAGS_INVERT_SIG;
+    //
 
     soft_serial_receive_queue = xQueueCreate(64, sizeof(mdb_item16_t));
     rmt_config(&rmt_rx_config);
