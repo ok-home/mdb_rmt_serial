@@ -33,7 +33,7 @@ static const char *TAG = "SoftSerialRmt";
 
 #define RX_CHANNEL RMT_CHANNEL_0
 #define RMT_RX_DIV (80)   //8
-#define RMT_RX_IDLE_THRES (1200)  //12000
+#define RMT_RX_IDLE_THRES (2500)  //12000
 #define RX_BIT_DIVIDER (100)  //1040
 
 #define TX_CHANNEL RMT_CHANNEL_4
@@ -83,9 +83,9 @@ static void soft_serial_receive_task(void *p)
             length /= 2; // one RMT = 2 Bytes
             for (int i = 0; i < length; i++)
             {
-                int duration = items[i].duration / RX_BIT_DIVIDER;
+                int duration = (items[i].duration+25) / RX_BIT_DIVIDER;
                 int lvl = items[i].level;
-                // ESP_LOGI(TAG, "%d lvl=%d, bit_in=%d,dur=%d", i, lvl, duration, items[i].duration);
+                 ESP_LOGI(TAG, "%d lvl=%d, bit_in=%d,dur=%d", i, lvl, duration, items[i].duration);
                 if (cnt_bit == 0) // start bit 
                 {
                     if (lvl == 0 && duration > 0 && duration < BIT_IN_WORD) // start bit
@@ -105,7 +105,7 @@ static void soft_serial_receive_task(void *p)
                         data.val >>= 1;
                         data.val |= lvl << (BIT_IN_WORD-3); // 8 with cmd or parity check //BIT_IN_WORD-3
                     }
-                    //ESP_LOGI(TAG, "byte decoded cnt %d data.val %0x ", cnt_byte, data.val);
+                    ESP_LOGI(TAG, "byte decoded cnt %d data.val %0x ", cnt_byte, data.val);
                     xQueueSend(soft_serial_receive_queue,&data,portMAX_DELAY);
                     cnt_byte++;
                     cnt_bit = 0; // wait next start bit
