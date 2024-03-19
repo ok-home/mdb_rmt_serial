@@ -22,14 +22,24 @@
 
 static const char *TAG = "SoftSerialRmt";
 
+/*
+* Divider set
+* 9600-1%+2% about 9500-9800 - MDB baud standart
+* tx baud calculate 80 000 000 / RMT_TX_DIV / TX_BIT_DIVIDER
+* rx bit divider should be a little more then max tx rate(9800) 
+* RX_BIT_DIVIDER = ( 80 000 000/9800/RMT_RX_DIV ) = 100-102
+* RMT_RX_IDLE_THRES may be  greater then (80 000 000/RX_BIT_DIVIDER/9500*11) = 1158(1200-2400)
+*/
+
 #define RX_CHANNEL RMT_CHANNEL_0
 #define RMT_RX_DIV (80)   //8
 #define RMT_RX_IDLE_THRES (1200)  //12000
 #define RX_BIT_DIVIDER (100)  //1040
 
 #define TX_CHANNEL RMT_CHANNEL_4
-#define RMT_TX_DIV (82)  //8
-#define TX_BIT_DIVIDER (100)  //1042
+//tx baud=80000000/80/104 = 9615 baud
+#define RMT_TX_DIV (80)  //8 // esp32_mdb = 82
+#define TX_BIT_DIVIDER (104)  //1042 // esp32_mdb=100
 
 #define BIT_IN_WORD (11) // start+9bit+stop
 
@@ -37,8 +47,6 @@ static QueueHandle_t soft_serial_receive_queue;
 static QueueHandle_t soft_serial_transmit_queue;
 static TaskHandle_t receive_task_handle;
 static TaskHandle_t transmit_task_handle;
-
-
 
 // single rmt item
 typedef struct
