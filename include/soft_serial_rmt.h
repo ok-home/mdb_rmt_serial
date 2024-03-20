@@ -13,36 +13,46 @@ typedef struct
         uint16_t val; /*!< Equivalent unsigned value for the MDB item */
     };
 } mdb_item16_t;
-
-enum ack_nak_ret_enum
+enum ackack_nak_ret
+{
+    MDB_ACK = 0,
+    MDB_RET = 0xAA,
+    MDB_NAK = 0xFF
+};
+enum ack_nak_ret_packet_enum
 {
     PACKET_DATA = 0,
     PACKET_ACK  = 1,
     PACKET_RET  = 2,
-    PACKET_NAK = 3
+    PACKET_NAK  = 3
 };
-
 typedef struct
 {
-    struct
+    uinon
     {
-        uint16_t packet_size    : 8;
-        uint16_t ack_nak_ret    : 2;
-        uint16_t no_crc         : 1;
-        uint16_t crc_err        : 1;
-        uint16_t spare          : 4;
+        struct
+        {
+            uint16_t packet_size    : 8;
+            uint16_t ack_nak_ret    : 2;
+            uint16_t no_crc         : 1;
+            uint16_t crc_err        : 1;
+            uint16_t frame_err      : 1;
+            uint16_t hw_reset       : 1;
+            uint16_t spare          : 2;
+        };
+        uint16_t value;
     }
 } struct mdb_packet_hdr_t;
 typedef struct
 {
-    mdb_packet_hdr_t    hdr;
-    mdb_item16_t        packet_data[40];
+    mdb_packet_hdr_t    packet_hdr;
+    mdb_item16_t        packet_data[39];
 } mdb_packet_t;
 
-esp_err_t soft_serial_init(gpio_num_t rx_pin, gpio_num_t tx_pin);
-esp_err_t soft_serial_deinit(void);
-esp_err_t soft_serial_write_data(mdb_item16_t *data, size_t count,TickType_t wait_time);
-esp_err_t soft_serial_read_data(mdb_item16_t *data, size_t count,TickType_t wait_time);
+esp_err_t mdb_init(gpio_num_t rx_pin, gpio_num_t tx_pin);
+esp_err_t mdb_deinit(void);
+esp_err_t mdb_tx_packet(mdb_packet_t *packet, TickType_t wait_time);
+esp_err_t mdb_rx_packet(mdb_packet_t *packet, TickType_t wait_time);
 
 #define DBG 1 
 

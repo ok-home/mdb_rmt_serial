@@ -53,9 +53,36 @@ mdb_item16_t send_data[] =
     {.cmd=0,.data=0x88},
     {.cmd=0,.data=0x11},
     {.cmd=1,.data=0x0}
-
 };
 
+mdb_packet_t send_packet =
+{
+    .packet_hdr.packet_size = 2,
+    .packet_data = 
+    {
+    {.cmd=1,.data=0xaa},
+    {.cmd=0,.data=0x1},
+    {.cmd=0,.data=0x10},
+    {.cmd=0,.data=0xff},
+    {.cmd=1,.data=0xff},
+    {.cmd=0,.data=0x00},
+    {.cmd=0,.data=0x0f},
+    {.cmd=0,.data=0xf0},
+    {.cmd=0,.data=0x30},
+    {.cmd=0,.data=0x03},
+    {.cmd=0,.data=0xe0},
+    {.cmd=0,.data=0x0e},
+    {.cmd=1,.data=0xc0},
+    {.cmd=0,.data=0x0c},
+    {.cmd=1,.data=0xcc},
+    {.cmd=0,.data=0xbb},
+    {.cmd=0,.data=0x33},
+    {.cmd=1,.data=0x77},
+    {.cmd=0,.data=0x88},
+    {.cmd=0,.data=0x11},
+    {.cmd=1,.data=0x0}
+    }
+}
 
 void app_main(void)
 
@@ -76,7 +103,8 @@ void app_main(void)
     #endif
     soft_serial_init(RMT_RX_GPIO, RMT_TX_GPIO); 
 
-    mdb_item16_t data[64];
+
+    mdb_packet_t rx_packet = {0};
     int cnt = 0;
     int icnt=0;
     int err_cnt = 0;    
@@ -85,14 +113,19 @@ void app_main(void)
         #if DBG
         gpio_set_level(TX_TEST_GPIO,1);
         #endif
-        soft_serial_write_data(send_data,sizeof(send_data)/sizeof(mdb_item16_t),portMAX_DELAY);
-        soft_serial_read_data(data,sizeof(send_data)/sizeof(mdb_item16_t),portMAX_DELAY);
+        mdb_tx_packet(&send_packet,portMAX_DELAY);
+        mdb_rx_packet(&rx_packet,portMAX_DELAY);
         #if DBG
         gpio_set_level(TX_TEST_GPIO,0);
         #endif
-       if(memcmp((void*)send_data,(void*)data,sizeof(send_data)))
-            {ESP_LOGE(TAG,"ERROR %d",err_cnt);}
-       memset((void*)data,0,sizeof(send_data));
+        if(send_packet.packet_hdr.size!=rx_packet.packet_hdr.size)
+           ESP_LOGE(TAG,"ERROR Size tx=%d rx=%d",send_packet.packet_hdr.size,rx_packet.packet_hdr.size)
+        for(int i=0;i<send_packet.packet_hdr.size;i++)
+        {
+            if(send_packet.packet_data[i].data!=rx_packet.packet_data[i].data)
+                {ESP_LOGE(TAG,"ERROR Packet idx= %d tx %x rx %x",i,send_packet.packet_data[i].data,rx_packet.packet_data[i].data);}
+        }
+       memset((void*)&rx_packet,0,sizeof(rx_packet));
        cnt++;
        if( cnt >= 10)
             {ESP_LOGI(TAG,"Send/Receive %d packet icnt=%d",cnt, icnt++); cnt=0;}

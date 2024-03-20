@@ -44,10 +44,10 @@ static const char *TAG = "SoftSerialRmt";
 
 #define BIT_IN_WORD (11) // start+9bit+stop
 
-static QueueHandle_t soft_serial_receive_queue;
-static QueueHandle_t soft_serial_transmit_queue;
-static TaskHandle_t receive_task_handle;
-static TaskHandle_t transmit_task_handle;
+static QueueHandle_t mdb_rx_packet_queue;
+static QueueHandle_t mdb_tx_packet_queue;
+static TaskHandle_t mdb_rx_packet_task_handle;
+static TaskHandle_t mdb_tx_packet_task_handle;
 
 // single rmt item
 typedef struct
@@ -63,14 +63,16 @@ typedef struct
     };
 } rmt_item16_t;
 
-static void soft_serial_receive_task(void *p)
+static void mdb_rx_packet_task(void *p)
 {
     size_t length = 0;
     RingbufHandle_t rb = NULL;
     rmt_item16_t *items = NULL;
     mdb_item16_t data = {0};
+    mdb_packet_t packet = {0};
     int cnt_bit = 0;  // wait start bit, bit count
-    int cnt_byte = 0; // byte in packet 
+    int cnt_byte = 0; // byte in packet
+    uint8_t crc = 0;  // crc on packet
     rmt_get_ringbuf_handle(RX_CHANNEL, &rb);
     rmt_rx_start(RX_CHANNEL, true);
     while (1)
@@ -107,7 +109,9 @@ static void soft_serial_receive_task(void *p)
                         data.val |= lvl << (BIT_IN_WORD-3); // 8 with cmd or parity check //BIT_IN_WORD-3
                     }
                     //ESP_LOGI(TAG, "byte decoded cnt %d data.val %0x ", cnt_byte, data.val);
-                    xQueueSend(soft_serial_receive_queue,&data,portMAX_DELAY);
+                    //xQueueSend(mdb_rx_packet_queue,&data,portMAX_DELAY);
+                    packet.packet_data[cnt_byte].val = data.val;
+                    crc += data.data;
                     cnt_byte++;
                     cnt_bit = 0; // wait next start bit
                 }
@@ -125,46 +129,67 @@ static void soft_serial_receive_task(void *p)
         #if DBG
         gpio_set_level(RX_TEST_GPIO,0);
         #endif
+        packet.hdr.packet_size = cnt_byte;
+        if(length != cnt_byte){packet.hdr.frame_err = true;}
+        if(crc-packet_data[cnt_byte] != packet_data[cnt_byte] ){packet.hdr.crc_err = true;}
+        ESP_LOGI(TAG, "all item converted size=%d len=%d crc_err=%d frame_err=%d ",packet.hdr.packet_size,length,packet.hdr.crc_err,packet.hdr.frame_err);
         //ESP_LOGI(TAG, "all item converted %d byte ",cnt_byte);
+        xQueueSend(mdb_rx_packet_queue,&packet,portMAX_DELAY);
         cnt_byte = 0;
         cnt_bit = 0; // wait next start bit
+        crc=0;
+        memset(&packet,0,sizeof(packet));
         vRingbufferReturnItem(rb, (void *)items);
     }
 }
-static void soft_serial_transmit_task(void *p)
+static void mdb_item_to_rmt_item_cvt(rmt_item16_t *rmt_data, mdb_item16_t data)
+{
+        int cnt = 0;
+        rmt_data[cnt]->level = 0; // start bit
+        rmt_data[cnt]->duration = TX_BIT_DIVIDER;
+        cnt++;
+        for(;cnt<BIT_IN_WORD-1;cnt++)
+        {
+            rmt_data[cnt]->level = data.val&1; 
+            rmt_data[cnt]->duration = TX_BIT_DIVIDER;            
+            data.val >>=1 ;
+        }
+        rmt_data[cnt]->level = 1; // stop bit
+        rmt_data[cnt]->duration = TX_BIT_DIVIDER;
+        cnt++;
+        rmt_data[cnt]->level = 1; // end transfer
+        rmt_data[cnt]->duration = 0;
+        cnt++;
+        rmt_data[cnt]->level = 1; // end transfer
+        rmt_data[cnt]->duration = 0;
+}
+
+static void mdb_tx_packet_task(void *p)
 {
     rmt_item32_t rmt_item[8] ;
     rmt_item16_t *rmt_data = (rmt_item16_t *)rmt_item;
     int cnt = 0;
-    mdb_item16_t data = {0};
+    mdb_item16_t crc = {0};
+    mdb_packet_t packet = {0};
     while(1)
     {
-        xQueueReceive(soft_serial_transmit_queue, &data, portMAX_DELAY);
-        cnt = 0;
-        rmt_data[cnt].level = 0; // start bit
-        rmt_data[cnt].duration = TX_BIT_DIVIDER;
-        cnt++;
-        for(;cnt<BIT_IN_WORD-1;cnt++)
+        xQueueReceive(mdb_tx_packet_queue, &packet, portMAX_DELAY);
+        crc.val=0; cnt=0;
+        for(cnt=0;cnt < packet.packet_hdr.packet_size;cnt++)
         {
-            rmt_data[cnt].level = data.val&1; 
-            rmt_data[cnt].duration = TX_BIT_DIVIDER;            
-            data.val >>=1 ;
+            crc.data += packet.packet_data[cnt];
+            mdb_item_to_rmt_item_cvt(rmt_data,packet.packet_data[cnt]);
+            rmt_write_items(TX_CHANNEL, rmt_item, 8, 1);  //start & wait done
         }
-        rmt_data[cnt].level = 1; // stop bit
-        rmt_data[cnt].duration = TX_BIT_DIVIDER;
-        cnt++;
-        rmt_data[cnt].level = 1; // end transfer
-        rmt_data[cnt].duration = 0;
-        cnt++;
-        rmt_data[cnt].level = 1; // end transfer
-        rmt_data[cnt].duration = 0;
-        cnt++;
-        rmt_write_items(TX_CHANNEL, rmt_item, 8, 1);  //start & wait done
-
+        if  (packet.packet_hdr.not_crc == false)
+        {
+            mdb_item_to_rmt_item_cvt(rmt_data,crc);
+            rmt_write_items(TX_CHANNEL, rmt_item, 8, 1);  //start & wait done
+        }
     }
 }
 
-esp_err_t soft_serial_init(gpio_num_t rx_pin, gpio_num_t tx_pin)
+esp_err_t mdb_init(gpio_num_t rx_pin, gpio_num_t tx_pin)
 {
 
     rmt_config_t rmt_tx_config = RMT_DEFAULT_CONFIG_TX(tx_pin, TX_CHANNEL);
@@ -178,10 +203,10 @@ esp_err_t soft_serial_init(gpio_num_t rx_pin, gpio_num_t tx_pin)
     //
     //rmt_tx_config.flags=RMT_CHANNEL_FLAGS_INVERT_SIG;
     //
-    soft_serial_transmit_queue = xQueueCreate(64, sizeof(mdb_item16_t));
+    mdb_tx_packet_queue = xQueueCreate(4, sizeof(mdb_packet_t));
     rmt_config(&rmt_tx_config);
     rmt_driver_install(TX_CHANNEL, 0, 0);
-    xTaskCreate(soft_serial_transmit_task, "rmt tx", 4096, NULL, 5, &transmit_task_handle);
+    xTaskCreate(mdb_tx_packet_task, "rmt tx", 4096, NULL, 5, &mdb_tx_packet_task_handle);
 
     rmt_config_t rmt_rx_config = RMT_DEFAULT_CONFIG_RX(rx_pin, RX_CHANNEL);
     rmt_rx_config.clk_div = RMT_RX_DIV;
@@ -193,44 +218,38 @@ esp_err_t soft_serial_init(gpio_num_t rx_pin, gpio_num_t tx_pin)
     //
     //rmt_rx_config.flags=RMT_CHANNEL_FLAGS_INVERT_SIG;
     //
-    soft_serial_receive_queue = xQueueCreate(64, sizeof(mdb_item16_t));
+    mdb_rx_packet_queue = xQueueCreate(4, sizeof(mdb_packet_t));
     rmt_config(&rmt_rx_config);
     rmt_driver_install(RX_CHANNEL, 4096, 0);
-    xTaskCreate(soft_serial_receive_task, "rmt rx", 4096, NULL, 5, &receive_task_handle);
+    xTaskCreate(mdb_rx_packet_task, "rmt rx", 4096, NULL, 5, &mdb_rx_packet_task_handle);
 
     return ESP_OK;
 }
 
-esp_err_t soft_serial_deinit(void)
+esp_err_t mdb_deinit(void)
 {
-    vTaskDelete(receive_task_handle);
+    vTaskDelete(mdb_rx_packet_task_handle);
     rmt_driver_uninstall(RX_CHANNEL);
-    vQueueDelete(soft_serial_receive_queue);
+    vQueueDelete(mdb_rx_packet_queue);
 
-    vTaskDelete(transmit_task_handle);
+    vTaskDelete(mdb_tx_packet_task_handle);
     rmt_driver_uninstall(TX_CHANNEL);
-    vQueueDelete(soft_serial_transmit_queue);
+    vQueueDelete(mdb_tx_packet_queue);
 
     return ESP_OK;
 }
 
-esp_err_t soft_serial_write_data(mdb_item16_t *data, size_t count, TickType_t wait_time)
+esp_err_t mdb_tx_packet(mdb_packet_t *packet, TickType_t wait_time)
 {
-    for (int i = 0; i < count; i++)
-    {
-        if(xQueueSend(soft_serial_transmit_queue, &data[i], wait_time) != pdTRUE)
-            { return ESP_ERR_TIMEOUT ;}
-    }
+    if(xQueueSend(mdb_tx_packet_queue, packet, wait_time) != pdTRUE)
+    { return ESP_ERR_TIMEOUT ;}
     return ESP_OK;
 }
 
-esp_err_t soft_serial_read_data(mdb_item16_t *data, size_t count,TickType_t wait_time)
+esp_err_t mdb_rx_packet(mdb_packet_t *packet, TickType_t wait_time)
 {
-    for (int i = 0; i < count; i++)
-    {
-        if(xQueueReceive(soft_serial_receive_queue, &data[i], wait_time)!= pdTRUE)
+        if(xQueueReceive(mdb_rx_packet_queue, packet, wait_time)!= pdTRUE)
         { return ESP_ERR_TIMEOUT ;}
-    }
     return ESP_OK;
 }
 
