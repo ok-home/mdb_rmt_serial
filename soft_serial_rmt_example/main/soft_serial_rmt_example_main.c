@@ -103,7 +103,7 @@ void app_main(void)
     int err_cnt = 0;
     while (1)
     {
-        vTaskDelay(10);
+        //vTaskDelay(10);
 #if DBG
         gpio_set_level(TX_TEST_GPIO, 1);
 #endif
@@ -128,5 +128,7 @@ void app_main(void)
             ESP_LOGI(TAG, "Send/Receive %d packet icnt=%d", cnt, icnt++);
             cnt = 0;
         }
+            mdb_hw_reset();
     }
+
 }

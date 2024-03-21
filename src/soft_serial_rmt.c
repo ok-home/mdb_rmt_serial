@@ -171,7 +171,7 @@ static void mdb_tx_packet_task(void *p)
             mdb_item_to_rmt_item_cvt(rmt_data, packet.packet_data[cnt]);
             rmt_write_items(TX_CHANNEL, rmt_item, 8, 1); // start & wait done
         }
-        xEventGroupSetBits(mdb_tx_event_group, DB_TX_DONE_BIT);
+        xEventGroupSetBits(mdb_tx_event_group, MDB_TX_DONE_BIT);
     }
 }
 esp_err_t mdb_init(gpio_num_t rx_pin, gpio_num_t tx_pin)
@@ -244,31 +244,26 @@ void mdb_clear_rx_queue(void)
 // hw reset mdb bus - 100 mS->Break, 200 ms->Setup 
 void mdb_hw_reset(void)
 {
-    rmt_item32_t rmt_item[2];
+    rmt_item32_t rmt_item[3];
     vTaskSuspend(mdb_tx_packet_task_handle);
     vTaskSuspend(mdb_rx_packet_task_handle);
     rmt_rx_stop(RX_CHANNEL);
 
     rmt_item[0].level0 = 0; 
-    rmt_item[0].duration0 = 10000;
+    rmt_item[0].duration0 = 30000;
     rmt_item[0].level1 = 0; 
-    rmt_item[0].duration1 = 0;
+    rmt_item[0].duration1 = 30000;
     rmt_item[1].level0 = 0; 
-    rmt_item[1].duration0 = 0;
+    rmt_item[1].duration0 = 30000;
     rmt_item[1].level1 = 0; 
-    rmt_item[1].duration1 = 0;
-    rmt_write_items(TX_CHANNEL, rmt_item, 2, 1); // set mdb bus to 0-level
-    vTaskDelay(10);                      // wait 100 mSek
-    rmt_item[0].level0 = 1; 
-    rmt_item[0].duration0 = 10000;
-    rmt_item[0].level1 = 1; 
-    rmt_item[0].duration1 = 0;
-    rmt_item[1].level0 = 1; 
-    rmt_item[1].duration0 = 0;
-    rmt_item[1].level1 = 1; 
-    rmt_item[1].duration1 = 0;
-    rmt_write_items(TX_CHANNEL, rmt_item, 2, 1); // set mdb bus to 1-level
-    vTaskDelay(20);                      // wait 200 mSek to setup mdb devices
+    rmt_item[1].duration1 = 30000;
+    rmt_item[2].level0 = 1; 
+    rmt_item[2].duration0 = 0;
+    rmt_item[2].level1 = 1; 
+    rmt_item[2].duration1 = 0;
+    rmt_write_items(TX_CHANNEL, rmt_item, 3, 1); // set mdb bus to 0-level
+
+    vTaskDelay(25);                      // wait 200 mSek to setup mdb devices
 
     rmt_tx_memory_reset(TX_CHANNEL);
     xQueueReset(mdb_tx_packet_queue);
@@ -277,5 +272,5 @@ void mdb_hw_reset(void)
     rmt_rx_memory_reset(RX_CHANNEL);
     xQueueReset(mdb_rx_packet_queue);
     vTaskResume(mdb_rx_packet_task_handle);
-    rmt_rx_start(RX_CHANNEL);
+    rmt_rx_start(RX_CHANNEL,true);
 }
