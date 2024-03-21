@@ -107,7 +107,7 @@ void app_main(void)
 #if DBG
         gpio_set_level(TX_TEST_GPIO, 1);
 #endif
-        mdb_tx_packet(&send_packet, portMAX_DELAY);
+        mdb_tx_packet(&send_packet);
         mdb_rx_packet(&rx_packet, portMAX_DELAY);
 #if DBG
         gpio_set_level(TX_TEST_GPIO, 0);

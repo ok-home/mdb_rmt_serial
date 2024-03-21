@@ -49,6 +49,9 @@ static QueueHandle_t mdb_tx_packet_queue;
 static TaskHandle_t mdb_rx_packet_task_handle;
 static TaskHandle_t mdb_tx_packet_task_handle;
 
+#define MDB_TX_DONE_BIT BIT0
+static EventGroupHandle_t mdb_tx_event_group;
+
 // single rmt item
 typedef struct
 {
@@ -168,6 +171,7 @@ static void mdb_tx_packet_task(void *p)
             mdb_item_to_rmt_item_cvt(rmt_data, packet.packet_data[cnt]);
             rmt_write_items(TX_CHANNEL, rmt_item, 8, 1); // start & wait done
         }
+        xEventGroupSetBits(mdb_tx_event_group, DB_TX_DONE_BIT);
     }
 }
 esp_err_t mdb_init(gpio_num_t rx_pin, gpio_num_t tx_pin)
@@ -184,7 +188,8 @@ esp_err_t mdb_init(gpio_num_t rx_pin, gpio_num_t tx_pin)
     //
     // rmt_tx_config.flags=RMT_CHANNEL_FLAGS_INVERT_SIG;
     //
-    mdb_tx_packet_queue = xQueueCreate(4, sizeof(mdb_packet_t));
+    mdb_tx_event_group = xEventGroupCreate();
+    mdb_tx_packet_queue = xQueueCreate(1, sizeof(mdb_packet_t));
     rmt_config(&rmt_tx_config);
     rmt_driver_install(TX_CHANNEL, 0, 0);
     xTaskCreate(mdb_tx_packet_task, "rmt tx", 4096, NULL, 5, &mdb_tx_packet_task_handle);
@@ -215,16 +220,14 @@ esp_err_t mdb_deinit(void)
     vTaskDelete(mdb_tx_packet_task_handle);
     rmt_driver_uninstall(TX_CHANNEL);
     vQueueDelete(mdb_tx_packet_queue);
+    vEventGroupDelete(mdb_tx_event_group);
 
     return ESP_OK;
 }
-esp_err_t mdb_tx_packet(mdb_packet_t *packet, TickType_t wait_time)
+void mdb_tx_packet(mdb_packet_t *packet)
 {
-    if (xQueueSend(mdb_tx_packet_queue, packet, wait_time) != pdTRUE)
-    {
-        return ESP_ERR_TIMEOUT;
-    }
-    return ESP_OK;
+    xQueueSend(mdb_tx_packet_queue, packet, portMAX_DELAY); // data send to tx queue, start transmit
+    xEventGroupWaitBits(mdb_tx_event_group,MDB_TX_DONE_BIT,pdTRUE,pdFALSE,portMAX_DELAY); // all data transmitted
 }
 esp_err_t mdb_rx_packet(mdb_packet_t *packet, TickType_t wait_time)
 {
@@ -233,4 +236,46 @@ esp_err_t mdb_rx_packet(mdb_packet_t *packet, TickType_t wait_time)
         return ESP_ERR_TIMEOUT;
     }
     return ESP_OK;
+}
+void mdb_clear_rx_queue(void)
+{
+    xQueueReset(mdb_rx_packet_queue);
+}
+// hw reset mdb bus - 100 mS->Break, 200 ms->Setup 
+void mdb_hw_reset(void)
+{
+    rmt_item32_t rmt_item[2];
+    vTaskSuspend(mdb_tx_packet_task_handle);
+    vTaskSuspend(mdb_rx_packet_task_handle);
+    rmt_rx_stop(RX_CHANNEL);
+
+    rmt_item[0].level0 = 0; 
+    rmt_item[0].duration0 = 10000;
+    rmt_item[0].level1 = 0; 
+    rmt_item[0].duration1 = 0;
+    rmt_item[1].level0 = 0; 
+    rmt_item[1].duration0 = 0;
+    rmt_item[1].level1 = 0; 
+    rmt_item[1].duration1 = 0;
+    rmt_write_items(TX_CHANNEL, rmt_item, 2, 1); // set mdb bus to 0-level
+    vTaskDelay(10);                      // wait 100 mSek
+    rmt_item[0].level0 = 1; 
+    rmt_item[0].duration0 = 10000;
+    rmt_item[0].level1 = 1; 
+    rmt_item[0].duration1 = 0;
+    rmt_item[1].level0 = 1; 
+    rmt_item[1].duration0 = 0;
+    rmt_item[1].level1 = 1; 
+    rmt_item[1].duration1 = 0;
+    rmt_write_items(TX_CHANNEL, rmt_item, 2, 1); // set mdb bus to 1-level
+    vTaskDelay(20);                      // wait 200 mSek to setup mdb devices
+
+    rmt_tx_memory_reset(TX_CHANNEL);
+    xQueueReset(mdb_tx_packet_queue);
+    vTaskResume(mdb_tx_packet_task_handle);
+
+    rmt_rx_memory_reset(RX_CHANNEL);
+    xQueueReset(mdb_rx_packet_queue);
+    vTaskResume(mdb_rx_packet_task_handle);
+    rmt_rx_start(RX_CHANNEL);
 }
