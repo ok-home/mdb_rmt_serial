@@ -263,7 +263,7 @@ void mdb_hw_reset(void)
     rmt_item[2].duration1 = 0;
     rmt_write_items(TX_CHANNEL, rmt_item, 3, 1); // set mdb bus to 0-level
 
-    vTaskDelay(25);                      // wait 200 mSek to setup mdb devices
+    vTaskDelay(pdMS_TO_TICKS(250));                      // wait 200 mSek to setup mdb devices
 
     rmt_tx_memory_reset(TX_CHANNEL);
     xQueueReset(mdb_tx_packet_queue);
