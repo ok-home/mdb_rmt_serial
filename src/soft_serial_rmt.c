@@ -35,7 +35,11 @@ static const char *TAG = "SoftSerialRmt";
 #define RMT_RX_DIV (80)          // 8
 #define RMT_RX_IDLE_THRES (2000) // 12000
 #define RX_BIT_DIVIDER (100)     // 1040
-#define RX_PULSE_EDGE_DELAY_COMPENSATION (25)
+// min duration on log  ( dur = 59 ) compensation = 104-59 = 45 
+#define RX_PULSE_HI_LVL_DELAY_COMPENSATION (45)
+#define RX_PULSE_LOW_LVL_DELAY_COMPENSATION (45/2)
+#define RX_INVERT_LVL 1
+
 
 #define TX_CHANNEL RMT_CHANNEL_4
 // tx baud=80000000/80/104 = 9615 baud
@@ -87,9 +91,15 @@ static void mdb_rx_packet_task(void *p)
             length /= 2; // one RMT = 2 Bytes
             for (int i = 0; i < length; i++)
             {
-                int duration = (items[i].duration + RX_PULSE_EDGE_DELAY_COMPENSATION) / RX_BIT_DIVIDER;
-                int lvl = items[i].level;
-                // ESP_LOGI(TAG, "%d lvl=%d, bit_in=%d,dur=%d", i, lvl, duration, items[i].duration);
+                #if RX_INVERT_LVL
+                int lvl = (!items[i].level)&1; // invert lvl
+                #else
+                int lvl = (items[i].level)&1; 
+                #endif
+                int duration = (lvl==1) ? 
+                                        (items[i].duration + RX_PULSE_HI_LVL_DELAY_COMPENSATION) / RX_BIT_DIVIDER :
+                                        (items[i].duration - RX_PULSE_LOW_LVL_DELAY_COMPENSATION) / RX_BIT_DIVIDER ;
+                 ESP_LOGI(TAG, "%d lvl=%d, bit_in=%d,dur=%d", i, lvl, duration, items[i].duration);
                 if (cnt_bit == 0) // start bit
                 {
                     if (lvl == 0 && duration > 0 && duration < BIT_IN_WORD) // start bit
@@ -127,7 +137,7 @@ static void mdb_rx_packet_task(void *p)
         gpio_set_level(RX_TEST_GPIO, 0);
 #endif
         packet.packet_hdr.packet_size = cnt_byte;
-        // ESP_LOGI(TAG, "all item converted %d byte ",cnt_byte);
+         ESP_LOGI(TAG, "all item converted %d byte ",cnt_byte);
         xQueueSend(mdb_rx_packet_queue, &packet, portMAX_DELAY);
         cnt_byte = 0;
         cnt_bit = 0; // wait next start bit
@@ -198,9 +208,8 @@ esp_err_t mdb_init(gpio_num_t rx_pin, gpio_num_t tx_pin)
     rmt_rx_config.clk_div = RMT_RX_DIV;
     rmt_rx_config.mem_block_num = 4;
     rmt_rx_config.rx_config.idle_threshold = RMT_RX_IDLE_THRES;
-    rmt_rx_config.rx_config.filter_en = 0;
     rmt_rx_config.rx_config.filter_en = true;
-    rmt_rx_config.rx_config.filter_ticks_thresh = 5;
+    rmt_rx_config.rx_config.filter_ticks_thresh = 40; // increase value if log dur = 1. thresold tick = 12.5nS ( APB clock = 80 mHz )
     //
     // rmt_rx_config.flags=RMT_CHANNEL_FLAGS_INVERT_SIG;
     //
