@@ -33,12 +33,12 @@ static const char *TAG = "SoftSerialRmt";
 
 #define RX_CHANNEL RMT_CHANNEL_0
 #define RMT_RX_DIV (80)          // 8
-#define RMT_RX_IDLE_THRES (2000) // 12000
+#define RMT_RX_IDLE_THRES (1400) // 12000
 #define RX_BIT_DIVIDER (100)     // 1040
 // min duration on log  ( dur = 59 ) compensation = 104-59 = 45 
-#define RX_PULSE_HI_LVL_DELAY_COMPENSATION (45)
-#define RX_PULSE_LOW_LVL_DELAY_COMPENSATION (45/2)
-#define RX_INVERT_LVL 1
+#define RX_PULSE_HI_LVL_DELAY_COMPENSATION (0)
+#define RX_PULSE_LOW_LVL_DELAY_COMPENSATION (0)
+#define RX_INVERT_LVL 0
 
 
 #define TX_CHANNEL RMT_CHANNEL_4
@@ -99,7 +99,7 @@ static void mdb_rx_packet_task(void *p)
                 int duration = (lvl==1) ? 
                                         (items[i].duration + RX_PULSE_HI_LVL_DELAY_COMPENSATION) / RX_BIT_DIVIDER :
                                         (items[i].duration - RX_PULSE_LOW_LVL_DELAY_COMPENSATION) / RX_BIT_DIVIDER ;
-                 ESP_LOGI(TAG, "%d lvl=%d, bit_in=%d,dur=%d", i, lvl, duration, items[i].duration);
+                 //ESP_LOGI(TAG, "%d lvl=%d, bit_in=%d,dur=%d", i, lvl, duration, items[i].duration);
                 if (cnt_bit == 0) // start bit
                 {
                     if (lvl == 0 && duration > 0 && duration < BIT_IN_WORD) // start bit
@@ -137,7 +137,7 @@ static void mdb_rx_packet_task(void *p)
         gpio_set_level(RX_TEST_GPIO, 0);
 #endif
         packet.packet_hdr.packet_size = cnt_byte;
-         ESP_LOGI(TAG, "all item converted %d byte ",cnt_byte);
+         //ESP_LOGI(TAG, "all item converted %d byte ",cnt_byte);
         xQueueSend(mdb_rx_packet_queue, &packet, portMAX_DELAY);
         cnt_byte = 0;
         cnt_bit = 0; // wait next start bit
