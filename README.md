@@ -1,4 +1,4 @@
-# Simple exchange according to the MDB standard
+# Simple exchange according to the MDB standard (ESP32)
   - 9-bit/9600 baud only, using RMT
   - maximum data packet size 36 mdb_item16_t records
 ## interface functions
