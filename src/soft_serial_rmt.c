@@ -34,10 +34,10 @@ static const char *TAG = "SoftSerialRmt";
 #define RX_CHANNEL RMT_CHANNEL_0
 #define RMT_RX_DIV (80)          // 8
 #define RMT_RX_IDLE_THRES (1400) // 12000
-#define RX_BIT_DIVIDER (100)     // 1040
+#define RX_BIT_DIVIDER (104)     // 1040
 // min duration on log  ( dur = 59 ) compensation = 104-59 = 45 
-#define RX_PULSE_HI_LVL_DELAY_COMPENSATION (0)
-#define RX_PULSE_LOW_LVL_DELAY_COMPENSATION (0)
+//#define RX_PULSE_HI_LVL_DELAY_COMPENSATION (0)
+//#define RX_PULSE_LOW_LVL_DELAY_COMPENSATION (0)
 #define RX_INVERT_LVL 0
 
 
@@ -96,9 +96,10 @@ static void mdb_rx_packet_task(void *p)
                 #else
                 int lvl = (items[i].level)&1; 
                 #endif
-                int duration = (lvl==1) ? 
-                                        (items[i].duration + RX_PULSE_HI_LVL_DELAY_COMPENSATION) / RX_BIT_DIVIDER :
-                                        (items[i].duration - RX_PULSE_LOW_LVL_DELAY_COMPENSATION) / RX_BIT_DIVIDER ;
+//                int duration = (lvl==1) ? 
+//                                        (items[i].duration + RX_PULSE_HI_LVL_DELAY_COMPENSATION) / RX_BIT_DIVIDER :
+//                                        (items[i].duration - RX_PULSE_LOW_LVL_DELAY_COMPENSATION) / RX_BIT_DIVIDER ;
+                 int duration = (items[i].duration + RX_BIT_DIVIDER/2) / RX_BIT_DIVIDER ;
                  //ESP_LOGI(TAG, "%d lvl=%d, bit_in=%d,dur=%d", i, lvl, duration, items[i].duration);
                 if (cnt_bit == 0) // start bit
                 {
